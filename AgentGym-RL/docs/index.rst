@@ -45,6 +45,7 @@ verl is fast with:
 
    preparation/prepare_data
    preparation/reward_function
+   preparation/qa_environment_synthesis
 
 .. toctree::
    :maxdepth: 5
