@@ -1,0 +1,29 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    git \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy agentenv core package
+COPY AgentGym/agentenv /app/agentenv
+RUN cd /app/agentenv && pip install -e .
+
+# Copy agentenv-searchqa for client
+COPY AgentGym/agentenv-searchqa /app/agentenv-searchqa
+RUN cd /app/agentenv-searchqa && pip install -e .
+
+# Install additional dependencies for evaluation
+RUN pip install transformers jsonlines tqdm
+
+# Copy searchqa evaluation files
+COPY searchqa /app/searchqa
+
+WORKDIR /app/searchqa
+
+CMD ["python", "eval_searchqa.py", "--help"]
