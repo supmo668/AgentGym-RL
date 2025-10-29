@@ -1,0 +1,63 @@
+services:
+  # Generic Environment Server
+  env-server:
+    build:
+      context: ./AgentGym/agentenv-${ENV:-searchqa}
+      dockerfile: Dockerfile
+    image: agentgym/${ENV:-searchqa}:latest
+    container_name: agentgym-${ENV:-searchqa}
+    profiles: ["${ENV:-searchqa}"]
+    ports:
+      - "${ENV_PORT:-36001}:${ENV_PORT:-36001}"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SEARCHQA_FAISS_GPU=${SEARCHQA_FAISS_GPU:-false}
+      # Add other environment-specific variables as needed
+    volumes:
+      - env-data:/app/data
+      - ./AgentGym/agentenv-${ENV:-searchqa}/retrieve_data:/app/retrieve_data
+    command: ${ENV:-searchqa} --host 0.0.0.0 --port ${ENV_PORT:-36001}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${ENV_PORT:-36001}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  # Generic Evaluation Runner
+  eval-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.eval
+    image: agentgym/eval:latest
+    container_name: agentgym-eval-${ENV:-searchqa}
+    depends_on:
+      env-server:
+        condition: service_healthy
+        required: false
+    profiles: ["eval"]
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      - MODEL_NAME=${MODEL_NAME:-gpt-4o-mini}
+      - ENV=${ENV:-searchqa}
+      - ENV_PORT=${ENV_PORT:-36001}
+      - ENV_SERVER_BASE=${ENV_SERVER_BASE:-http://env-server:36001}
+      - MAX_ROUND=${MAX_ROUND:-10}
+      - INFERENCE_FILE=${INFERENCE_FILE:-${ENV:-searchqa}_eval_sample.json}
+    volumes:
+      - ./${ENV:-searchqa}:/app/${ENV:-searchqa}
+      - eval-results:/app/${ENV:-searchqa}/eval_results_${ENV:-searchqa}
+    working_dir: /app/${ENV:-searchqa}
+    command: >
+      python eval_${ENV:-searchqa}.py
+      --inference_file ${INFERENCE_FILE:-${ENV:-searchqa}_eval_sample.json}
+      --output_dir eval_results_${ENV:-searchqa}
+      --model ${MODEL_NAME:-gpt-4o-mini}
+      --max_round ${MAX_ROUND:-10}
+      --env_server_base ${ENV_SERVER_BASE:-http://env-server:${ENV_PORT:-36001}}
+
+volumes:
+  env-data:
+  eval-results:
